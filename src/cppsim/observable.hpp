@@ -115,6 +115,27 @@ public:
 };
 
 namespace observable {
+
+/**
+ * \~japanese-en
+ * 
+ * 原子・分子の第2量子化ハミルトニアンの係数(1電子積分・2電子積分)を読み込み、
+ * それに対しJordan-Wigner変換を行いHermitianQuantumOperatorを得る。
+ * 第二量子化ハミルトニアンは1電子積分をh_{p,q}、2電子積分をh_{p,q,r,s}として
+ * sum_{p,q} h_{p,q} a^dagger_p a_q + sum_{p,q,r,s} h_{p,q,r,s} a^dagger_p a^dagger_q a_r a_s
+ * と定義する.
+ * 
+ * @param[in] one_body: n_qubits x n_qubits array (real or complex): 1電子積分`h_{p,q}`の配列の先頭ポインタ
+ * @param[in] two_body: n_qubits x n_qubits x n_qubits x n_qubits array (real or complex):
+ *                      2電子積分`h_{p,q,r,s}`の配列の先頭ポインタ
+ * @param[in] n_qubits: ハミルトニアンのqubit数
+ * @return Jordan-Wigner返還後のハミルトニアンを表すObservableクラスのインスタンス
+ **/
+template<typename Coeff>
+DllExport HermitianQuantumOperator* create_observable_from_electron_integrals(
+    const Coeff* const one_body, const Coeff* const two_body, UINT n_qubits
+);
+
 /**
  * \~japanese-en
  *

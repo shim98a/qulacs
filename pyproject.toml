@@ -48,7 +48,8 @@ dev = [
 ]
 
 test = [
-    "openfermion"
+    "openfermion",
+    "openfermionpyscf"
 ]
 
 ci = [
@@ -58,6 +59,7 @@ ci = [
     "mypy",
     "pybind11-stubgen",
     "openfermion",
+    "openfermionpyscf",
     "pytest"
 ]
 

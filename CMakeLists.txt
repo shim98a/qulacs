@@ -144,6 +144,21 @@ ExternalProject_Add(
 )
 include_directories(SYSTEM ${EIGEN_INCLUDE_DIR})
 
+# robin hood hashing
+FetchContent_Declare(
+    robin_hood
+    GIT_REPOSITORY https://github.com/martinus/robin-hood-hashing
+    GIT_TAG        3.11.5
+)
+
+FetchContent_GetProperties(robin_hood)
+
+if(NOT robin_hood_POPULATED)
+    message(STATUS "Fetch robin_hood")
+    FetchContent_Populate(robin_hood)
+    include_directories(${robin_hood_SOURCE_DIR}/src/include)
+endif()
+
 # Google test
 if(USE_TEST)
 	FetchContent_Declare(

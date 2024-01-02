@@ -2,6 +2,7 @@
 #include <pybind11/complex.h>
 #include <pybind11/eigen.h>
 #include <pybind11/functional.h>
+#include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -322,6 +323,36 @@ PYBIND11_MODULE(qulacs_core, m) {
             py::arg("dst_state"))
         .def("__str__", &HermitianQuantumOperator::to_string, "to string");
     auto mobservable = m.def_submodule("observable");
+    mobservable.def("create_observable_from_real_electron_integrals",
+        [](
+            py::array_t<CPPCTYPE::value_type, py::array::c_style> one_body,
+            py::array_t<CPPCTYPE::value_type, py::array::c_style> two_body,
+            UINT qubit_count
+        ) -> HermitianQuantumOperator* {
+            return observable::create_observable_from_electron_integrals(
+                static_cast<CPPCTYPE::value_type*>(one_body.request().ptr),
+                static_cast<CPPCTYPE::value_type*>(two_body.request().ptr),
+                qubit_count
+            );
+        },
+        py::return_value_policy::take_ownership,
+        "Create HermitianQuantumOperator from real valued electron integrals",
+        py::arg("one_body"), py::arg("two_body"), py::arg("qubit_count"));
+    mobservable.def("create_observable_from_complex_electron_integrals",
+        [](
+            py::array_t<CPPCTYPE, py::array::c_style> one_body,
+            py::array_t<CPPCTYPE, py::array::c_style> two_body,
+            UINT qubit_count
+        ) -> HermitianQuantumOperator* {
+            return observable::create_observable_from_electron_integrals(
+                static_cast<CPPCTYPE*>(one_body.request().ptr),
+                static_cast<CPPCTYPE*>(two_body.request().ptr),
+                qubit_count
+            );
+        },
+        py::return_value_policy::take_ownership,
+        "Create HermitianQuantumOperator from complex valued electron integrals",
+        py::arg("one_body"), py::arg("two_body"), py::arg("qubit_count"));
     mobservable.def("create_observable_from_openfermion_file",
         &observable::create_observable_from_openfermion_file,
         py::return_value_policy::take_ownership,

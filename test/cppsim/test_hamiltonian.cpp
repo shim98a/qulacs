@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <Eigen/Eigenvalues>
+#include <unsupported/Eigen/CXX11/Tensor>
 #include <cppsim/circuit.hpp>
 #include <cppsim/gate.hpp>
 #include <cppsim/gate_factory.hpp>
@@ -103,6 +104,153 @@ TEST(ObservableTest, CheckExpectationValue) {
         ASSERT_NEAR(res.imag(), 0, eps);
         ASSERT_NEAR(test_res.imag(), 0, eps);
     }
+}
+
+void _check_if_two_observables_are_equal(
+    const Observable& obs_actual, const Observable& obs_expected
+) {
+    ASSERT_EQ(obs_actual.get_qubit_count(), obs_expected.get_qubit_count());
+    ASSERT_EQ(obs_actual.get_term_count(), obs_expected.get_term_count());
+
+    auto _is_term_found = [](bool term_is_found) -> ::testing::AssertionResult {
+        if(term_is_found) {
+            return ::testing::AssertionSuccess();
+        } else {
+            return ::testing::AssertionFailure() << "Term not found";
+        }
+    };
+
+    // lazy search
+    for(UINT i = 0; i < obs_actual.get_term_count(); i++) {
+        bool term_is_found = false;
+        for(UINT j = 0; j < obs_expected.get_term_count(); j++) {
+            const PauliOperator* pauli_actual = obs_actual.get_term(i);
+            const PauliOperator* pauli_expected = obs_expected.get_term(j);
+            
+            if(pauli_actual->get_index_list() == pauli_expected->get_index_list() &&
+               pauli_actual->get_pauli_id_list() == pauli_expected->get_pauli_id_list()) {
+                term_is_found = true;
+                CPPCTYPE coeff_actual = pauli_actual->get_coef();
+                CPPCTYPE coeff_expected = pauli_expected->get_coef();
+                ASSERT_DOUBLE_EQ(coeff_actual.real(), coeff_expected.real());
+            }
+        }
+        ASSERT_TRUE(_is_term_found(term_is_found));
+    }
+}
+
+TEST(ObservableTest, CheckCreateObservableFromRealElectronIntegrals) {
+    // make electron integral tensors.
+    const UINT qubit_count = 4;
+    const UINT n = qubit_count;
+    constexpr Eigen::StorageOptions row_major = Eigen::StorageOptions::RowMajor;
+    Eigen::Tensor<CPPCTYPE::value_type, 2, row_major> one_body(n, n);
+    Eigen::Tensor<CPPCTYPE::value_type, 4, row_major> two_body(n, n, n, n);
+
+    // Make completely meaningless electron integrals just for testing
+    for(UINT p = 0; p < n; p++) {
+        for(UINT q = 0; q < n; q++) {
+            one_body(p, q) = static_cast<CPPCTYPE::value_type>(p + 2 * q);
+            for(UINT r = 0; r < n; r++) {
+                for(UINT s = 0; s < n; s++) {
+                    two_body(p, q, r, s) = static_cast<CPPCTYPE::value_type>(
+                        p + 2 * q + 3 * r + 4 * s
+                    );
+                }
+            }
+        }
+    }
+
+    Observable obs_expected(qubit_count);
+    obs_expected.add_operator((-1.50), "Z 1");
+    obs_expected.add_operator((-3.00), "Z 2");
+    obs_expected.add_operator((-4.50), "Z 3");
+    obs_expected.add_operator((0.75), "X 0 X 1");
+    obs_expected.add_operator((0.75), "Y 0 Y 1");
+    obs_expected.add_operator((1.50), "X 0 Z 1 X 2");
+    obs_expected.add_operator((1.50), "Y 0 Z 1 Y 2");
+    obs_expected.add_operator((2.25), "X 0 Z 1 Z 2 X 3");
+    obs_expected.add_operator((2.25), "Y 0 Z 1 Z 2 Y 3");
+    obs_expected.add_operator((2.25), "X 1 X 2");
+    obs_expected.add_operator((2.25), "Y 1 Y 2");
+    obs_expected.add_operator((3.00), "X 1 Z 2 X 3");
+    obs_expected.add_operator((3.00), "Y 1 Z 2 Y 3");
+    obs_expected.add_operator((3.75), "X 2 X 3");
+    obs_expected.add_operator((3.75), "Y 2 Y 3");
+
+    Observable* obs_actual;
+    obs_actual = observable::create_observable_from_electron_integrals(
+        one_body.data(), two_body.data(), qubit_count
+    );
+
+    _check_if_two_observables_are_equal(*obs_actual, obs_expected);
+
+    delete obs_actual;
+}
+
+TEST(ObservableTest, CheckCreateObservableFromComplexElectronIntegrals) {
+    // make electron integral tensors.
+    const UINT qubit_count = 4;
+    const UINT n = qubit_count;
+    constexpr Eigen::StorageOptions row_major = Eigen::StorageOptions::RowMajor;
+    Eigen::Tensor<CPPCTYPE, 2, row_major> one_body(n, n);
+    Eigen::Tensor<CPPCTYPE, 4, row_major> two_body(n, n, n, n);
+
+    // Make completely meaningless electron integrals just for testing
+    for(UINT p = 0; p < n; p++) {
+        for(UINT q = 0; q < n; q++) {
+            one_body(p, q) = CPPCTYPE(
+                static_cast<CPPCTYPE::value_type>(p + 2*q),
+                static_cast<CPPCTYPE::value_type>(2*p + q)
+            );
+            for(UINT r = 0; r < n; r++) {
+                for(UINT s = 0; s < n; s++) {
+                    two_body(p, q, r, s) = CPPCTYPE(
+                        static_cast<CPPCTYPE::value_type>(p + 2*q + 3*r + 4*s),
+                        static_cast<CPPCTYPE::value_type>(4*p + 3*q + 2*r + s)
+                    );
+                }
+            }
+        }
+    }
+
+    Observable obs_expected(qubit_count);
+    obs_expected.add_operator((-1.50), "Z 1");
+    obs_expected.add_operator((-3.00), "Z 2");
+    obs_expected.add_operator((-4.50), "Z 3");
+    obs_expected.add_operator((0.75), "X 0 X 1");
+    obs_expected.add_operator((0.75), "Y 0 Y 1");
+    obs_expected.add_operator((-0.25), "Y 0 X 1");
+    obs_expected.add_operator((0.25), "X 0 Y 1");
+    obs_expected.add_operator((1.50), "X 0 Z 1 X 2");
+    obs_expected.add_operator((1.50), "Y 0 Z 1 Y 2");
+    obs_expected.add_operator((-0.50), "Y 0 Z 1 X 2");
+    obs_expected.add_operator((0.50), "X 0 Z 1 Y 2");
+    obs_expected.add_operator((2.25), "X 0 Z 1 Z 2 X 3");
+    obs_expected.add_operator((2.25), "Y 0 Z 1 Z 2 Y 3");
+    obs_expected.add_operator((-0.75), "Y 0 Z 1 Z 2 X 3");
+    obs_expected.add_operator((0.75), "X 0 Z 1 Z 2 Y 3");
+    obs_expected.add_operator((2.25), "X 1 X 2");
+    obs_expected.add_operator((2.25), "Y 1 Y 2");
+    obs_expected.add_operator((-0.25), "Y 1 X 2");
+    obs_expected.add_operator((0.25), "X 1 Y 2");
+    obs_expected.add_operator((3.00), "X 1 Z 2 X 3");
+    obs_expected.add_operator((3.00), "Y 1 Z 2 Y 3");
+    obs_expected.add_operator((-0.50), "Y 1 Z 2 X 3");
+    obs_expected.add_operator((0.50), "X 1 Z 2 Y 3");
+    obs_expected.add_operator((3.75), "X 2 X 3");
+    obs_expected.add_operator((3.75), "Y 2 Y 3");
+    obs_expected.add_operator((-0.25), "Y 2 X 3");
+    obs_expected.add_operator((0.25), "X 2 Y 3");
+
+    Observable* obs_actual;
+    obs_actual = observable::create_observable_from_electron_integrals<CPPCTYPE>(
+        one_body.data(), two_body.data(), qubit_count
+    );
+
+    _check_if_two_observables_are_equal(*obs_actual, obs_expected);
+
+    delete obs_actual;
 }
 
 TEST(ObservableTest, CheckParsedObservableFromOpenFermionText) {

@@ -11,10 +11,14 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <type_traits>
 
 #include "exception.hpp"
 #include "state.hpp"
 #include "utility.hpp"
+#include "_observable_helper/pauli_terms.hpp"
+#include "_observable_helper/jordan_wigner.hpp"
 
 void HermitianQuantumOperator::add_operator(const PauliOperator* mpt) {
     if (std::abs(mpt->get_coef().imag()) > 0) {
@@ -203,6 +207,63 @@ std::string HermitianQuantumOperator::to_string() const {
 }
 
 namespace observable {
+
+template<typename Coeff>
+HermitianQuantumOperator* create_observable_from_electron_integrals(
+    const Coeff* const one_body, const Coeff* const two_body, UINT n_qubits
+) {
+    static_assert(
+        std::is_same<Coeff, CPPCTYPE::value_type>::value == true ||
+        std::is_same<Coeff, CPPCTYPE>::value == true,
+        "`one_body` and `two_body` must be either \
+        real or complex double tensor."
+    );
+
+    static_assert(
+        std::is_same<UINT, observable_helper::index_type>::value == true,
+        "Inconsistent interger types. Consider changing the definition of \
+        `observable_helper::index_type`."
+    );
+
+    std::unique_ptr<observable_helper::HermitianPauliTerms>
+    pauli_terms_after_JW = observable_helper::jordan_wigner_from_electron_intergrals(
+        one_body, two_body, 0.0, n_qubits
+    );
+
+    HermitianQuantumOperator* observable = new HermitianQuantumOperator(n_qubits);
+
+    for(const observable_helper::HermitianPauliTerms::term_pair& term
+        : pauli_terms_after_JW->get_terms()) {
+        const observable_helper::float_type coeff = term.second;
+        PauliOperator* mpt = new PauliOperator{CPPCTYPE{coeff, 0.0}};
+
+        const std::vector<observable_helper::single_pauli_type>& pauli_ids = term.first;
+        for(observable_helper::single_pauli_type pauli : pauli_ids) {
+            mpt->add_single_Pauli(
+                static_cast<UINT>(observable_helper::get_index(pauli)),
+                static_cast<UINT>(observable_helper::get_pauli_id(pauli))
+            );
+        }
+        observable->add_operator_move(mpt);
+    }
+
+    return observable;
+}
+
+template
+HermitianQuantumOperator* create_observable_from_electron_integrals<CPPCTYPE::value_type>(
+    const CPPCTYPE::value_type* const one_body,
+    const CPPCTYPE::value_type* const two_body,
+    UINT n_qubits
+);
+
+template
+HermitianQuantumOperator* create_observable_from_electron_integrals<CPPCTYPE>(
+    const CPPCTYPE* const one_body,
+    const CPPCTYPE* const two_body,
+    UINT n_qubits
+);
+
 HermitianQuantumOperator* create_observable_from_openfermion_file(
     std::string file_path) {
     UINT qubit_count = 0;

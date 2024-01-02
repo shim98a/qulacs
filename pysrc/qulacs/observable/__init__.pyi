@@ -3,7 +3,6 @@ from __future__ import annotations
 import typing
 
 import qulacs_core
-import qulacs_core.observable
 
 __all__ = [
     "create_observable_from_openfermion_file",
